@@ -25,6 +25,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r, include=FALSE}
 # Load necessary libraries
 library(ggplot2)
+library(RColorBrewer)
 library(dplyr)
 library(knitr)
 library(tidyr)
@@ -832,7 +833,11 @@ ggsurvplot(km_fit_sex,
            risk.table.title = "",
            conf.int = FALSE,
            palette = c("red", "blue"),  # Set colors for male and female
-           ggtheme = theme_minimal())  # Set a minimal theme
+           ggtheme = theme_minimal(),
+           pval = TRUE, 
+           pval.size = 4,
+           pval.coord = c(20, 0.5),      
+           surv.median.line = "hv")  # Set a minimal theme
 
 ```
 
@@ -863,7 +868,11 @@ ggsurvplot(km_fit_stage,
            palette = "Dark2",
            ggtheme = theme_minimal(),
            risk.table.fontsize = 2.5,
-           risk.table.height = 0.25)
+           risk.table.height = 0.25,
+           pval = TRUE, 
+           pval.size = 4,
+           pval.coord = c(60, 0.6),      
+           surv.median.line = "hv")
 
 ```
 
@@ -895,7 +904,11 @@ ggsurvplot(km_fit_stage,
            palette = "Dark2",
            ggtheme = theme_minimal(),
            risk.table.fontsize = 2.5,
-           risk.table.height = 0.25)
+           risk.table.height = 0.25,
+           pval = TRUE, 
+           pval.size = 4,
+           pval.coord = c(40, 0.6),      
+           surv.median.line = "hv")
 
 ```
 
@@ -928,7 +941,11 @@ ggsurvplot(km_fit_race,
            palette = "Dark2",
            ggtheme = theme_minimal(),
            risk.table.fontsize = 2.5,
-           risk.table.height = 0.25)
+           risk.table.height = 0.25,
+           pval = TRUE, 
+           pval.size = 4,
+           pval.coord = c(20, 0.55),      
+           surv.median.line = "hv")
 
 ```
 
@@ -960,7 +977,11 @@ ggsurvplot(km_fit_hs,
            palette = "Dark2",
            ggtheme = theme_minimal(),
            risk.table.fontsize = 2.5,
-           risk.table.height = 0.27)
+           risk.table.height = 0.27,
+           pval = TRUE, 
+           pval.size = 4,
+           pval.coord = c(20, 0.55),      
+           surv.median.line = "hv")
 
 ```
 
@@ -984,7 +1005,11 @@ ggsurvplot(km_fit_stage_year,
            palette = "Dark2",
            ggtheme = theme_minimal(),
            risk.table.fontsize = 2.5,
-           risk.table.height = 0.28)
+           risk.table.height = 0.28,
+           pval = TRUE, 
+           pval.size = 4,
+           pval.coord = c(60, 0.6),      
+           surv.median.line = "hv")
 
 ```
 
@@ -1016,7 +1041,11 @@ ggsurvplot(km_fit_temp,
            palette = "Dark2",
            ggtheme = theme_minimal(),
            risk.table.fontsize = 2.5,
-           risk.table.height = 0.27)
+           risk.table.height = 0.27,
+           pval = TRUE, 
+           pval.size = 4,
+           pval.coord = c(20, 0.5),      
+           surv.median.line = "hv")
 
 ```
 
@@ -1048,7 +1077,11 @@ ggsurvplot(km_fit_smoking,
            conf.int = FALSE,
            ggtheme = theme_minimal(),
            risk.table.fontsize = 2.5,
-           risk.table.height = 0.27)
+           risk.table.height = 0.27,
+           pval = TRUE, 
+           pval.size = 4,
+           pval.coord = c(20, 0.55),      
+           surv.median.line = "hv")
 
 ```
 
@@ -1075,6 +1108,10 @@ ggsurvplot(km_fit_yost,
            conf.int = FALSE,
            ggtheme = theme_minimal(),
            risk.table.fontsize = 2.5,
-           risk.table.height = 0.3)
+           risk.table.height = 0.3,
+           pval = TRUE, 
+           pval.size = 4,
+           pval.coord = c(20, 0.55),      
+           surv.median.line = "hv")
 
 ```
