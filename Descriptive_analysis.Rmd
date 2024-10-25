@@ -1,0 +1,1080 @@
+---
+title: "Lung cancer survival dataset - Descriptive analysis"
+output:
+  html_document: 
+    toc: true          # Enables table of contents
+    toc_depth: 4       # Defines the depth (number of header levels) to include in the TOC
+    toc_float: true    # Makes the TOC float on the side (like the one in the screenshot)
+  pdf_document: default
+date: "2024-10-24"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**Incidence - SEER Research Plus Specialized Data (with county in case listing), 17 Registries (excluding Alaska), November 2023 Submission (2000-2021)**
+
+### Eligibility
+* Known age > 18 y/o
+* Site recode ICD-O-3 2023 Revision = Lung and bronchus
+* Malignant behavior
+* Baseline with no other cancers
+* Exclude missing information
+
+```{r, include=FALSE}
+# Load necessary libraries
+library(ggplot2)
+library(dplyr)
+library(knitr)
+library(tidyr)
+library(survival)
+library(survminer)
+#Load dataset
+setwd("/Users/albertko/Desktop/Harvard MPH/Research/David Christiani/Heat_LungCA")
+mydata <- read.csv("Survival dataset.csv", header = TRUE)
+mydata_Yost <- read.csv("Yost.csv", header = TRUE)
+mydata_Yost <- mydata_Yost %>% rename(Year.of.diagnosis = Year)
+```
+
+### All the variables available
+```{r}
+
+ls(mydata)
+
+```
+
+
+### Case numbers
+
+```{r}
+
+nrow(mydata)
+
+```
+
+### Variables pulled and prepped
+```{r}
+
+mydata_1 <- mydata %>% select(Patient.ID, Sex, Year.of.diagnosis, Year.of.follow.up.recode, Year.of.death.recode, Age.recode.with.single.ages.and.90., Marital.status.at.diagnosis, Race.and.origin.recode..NHW..NHB..NHAIAN..NHAPI..Hispanic., Histologic.Type.ICD.O.3, Laterality, SEER.modified.AJCC.stage.3rd..1988.2003., Derived.AJCC.Stage.Group..6th.ed..2004.2015., Derived.SEER.Cmb.Stg.Grp..2016.2017., Derived.EOD.2018.Stage.Group..2018.., Combined.Summary.Stage..2004.., Summary.stage.2000..1998.2017., Sequence.number, Chemotherapy.recode..yes..no.unk., Radiation.recode, Reason.no.cancer.directed.surgery, Time.from.diagnosis.to.treatment.in.days.recode, Vital.status.recode..study.cutoff.used., Race.recode..White..Black..Other., Survival.months, SEER.other.cause.of.death.classification, SEER.cause.specific.death.classification, COD.to.site.recode.ICD.O.3.2023.Revision.Expanded..1999.., State.county, X..Current.Smoker..age.18....sae.2000.2003., X..Current.Smoker..age.18....sae.2004.2007., X..Current.Smoker..age.18....sae.2008.2010., X..Current.Smoker..age.18....sae.2011.2013., X..Current.Smoker..age.18....sae.2014.2016.)
+
+ls(mydata_1)
+
+```
+
+### Demographics
+
+#### Age at diagnosis (Continuous)
+```{r}
+# Transform the "age" column to extract the numeric part
+mydata_1 <- mydata_1 %>%
+  mutate(age = as.numeric(gsub("[^0-9]", "", Age.recode.with.single.ages.and.90.)))
+
+summary(mydata_1$age)  # Gives Min, 1st Qu., Median, Mean, 3rd Qu., Max
+sd(mydata_1$age)       # Standard Deviation
+
+# Create a histogram of the age column
+ggplot(mydata_1, aes(x = age)) +
+  geom_histogram(binwidth = 3, fill = "lightblue", color = "black") +
+  scale_x_continuous(breaks = seq(10, 100, by = 5)) +
+  xlab("Age") +
+  ylab("Cases") +
+  ggtitle("Age distribution")
+```
+
+#### Sex (Categorical)
+```{r}
+
+# Create a summary table with counts and percentages
+summary_table <- mydata_1 %>%
+  group_by(Sex) %>%
+  summarise(
+    Count = n(),  # Count of each category
+    Percentage = round((n() / nrow(mydata_1)) * 100, 1)  # Percentage of each category
+  ) %>% ungroup()
+
+# Display the summary table
+kable(summary_table, caption = "")
+
+# Calculate percentage frequencies
+mydata_1 <- mydata_1 %>%
+  group_by(Sex) %>%
+  mutate(Count = n()) %>% 
+  mutate(Percentage = Count / nrow(mydata_1) * 100) %>% ungroup()
+
+# Create barplot
+ggplot(mydata_1, aes(x = Sex)) +
+  geom_bar(aes(y = after_stat(count) / 1000), width = 0.4, fill = "lightblue", color = "darkblue") +
+  geom_text(aes(y = after_stat(count) / 1000, label = sprintf("%.1f%%", Percentage)), 
+            stat = "count", vjust = -0.5, color = "black") +  # Add percentages on top of bars
+  labs(title = "Sex", x = "", y = "Counts (*1000)") +
+  scale_y_continuous(limits = c(0, 375)) +
+  theme_minimal() +  # Optional: Use a minimal theme
+  theme(
+    axis.text.x = element_text(angle = 0, hjust = 1)  # Angle x-axis labels
+  ) +
+  theme(plot.title = element_text(hjust = 0.5))  # Center the title
+
+```
+
+#### Marital status at diagnosis (Categorical)
+```{r}
+
+# Convert category to a factor and specify the order
+mydata_1$Marital.status.at.diagnosis <- factor(mydata_1$Marital.status.at.diagnosis, levels = c("Single (never married)", "Widowed", "Divorced", "Separated", "Married (including common law)", "Unknown"))
+
+# Create a summary table with counts and percentages
+summary_table <- mydata_1 %>%
+  group_by(Marital.status.at.diagnosis) %>%
+  summarise(
+    Count = n(),  # Count of each category
+    Percentage = round((n() / nrow(mydata_1)) * 100, 1)  # Percentage of each category
+  ) %>% ungroup()
+
+# Display the summary table
+kable(summary_table, caption = "")
+
+# Calculate percentage frequencies
+mydata_1 <- mydata_1 %>%
+  group_by(Marital.status.at.diagnosis) %>%
+  mutate(Count = n()) %>% 
+  mutate(Percentage = Count / nrow(mydata_1) * 100) %>% ungroup()
+
+# Create barplot
+ggplot(mydata_1, aes(x = Marital.status.at.diagnosis)) +
+  geom_bar(aes(y = after_stat(count) / 1000), width = 0.7, fill = "lightblue", color = "darkblue") +
+  geom_text(aes(y = after_stat(count) / 1000, label = sprintf("%.1f%%", Percentage)), 
+            stat = "count", vjust = -0.5, color = "black") +  # Add percentages on top of bars
+  labs(title = "Marital status at diagnosis", x = "", y = "Counts (*1000)") +
+  scale_y_continuous(limits = c(0, 375)) +
+  theme_minimal() +  # Optional: Use a minimal theme
+  theme(
+    axis.text.x = element_text(angle = 25, hjust = 1)  # Angle x-axis labels
+  ) +
+  theme(plot.title = element_text(hjust = 0.5))  # Center the title
+
+```
+
+
+#### Race and origin 1 (Categorical)
+```{r}
+
+# Create a summary table with counts and percentages
+summary_table <- mydata_1 %>%
+  group_by(Race.and.origin.recode..NHW..NHB..NHAIAN..NHAPI..Hispanic.) %>%
+  summarise(
+    Count = n(),  # Count of each category
+    Percentage = round((n() / nrow(mydata_1)) * 100, 1)  # Percentage of each category
+  ) %>% ungroup()
+
+# Display the summary table
+kable(summary_table, caption = "")
+
+# Calculate percentage frequencies
+mydata_1 <- mydata_1 %>%
+  group_by(Race.and.origin.recode..NHW..NHB..NHAIAN..NHAPI..Hispanic.) %>%
+  mutate(Count = n()) %>% 
+  mutate(Percentage = Count / nrow(mydata_1) * 100) %>% ungroup()
+
+# Create barplot
+ggplot(mydata_1, aes(x = Race.and.origin.recode..NHW..NHB..NHAIAN..NHAPI..Hispanic.)) +
+  geom_bar(aes(y = after_stat(count) / 1000), width = 0.5, fill = "lightblue", color = "darkblue") +
+  geom_text(aes(y = after_stat(count) / 1000, label = sprintf("%.1f%%", Percentage)), 
+            stat = "count", vjust = -0.5, color = "black") +  # Add percentages on top of bars
+  labs(title = "Race and origin", x = "", y = "Counts (*1000)") +
+  scale_y_continuous(limits = c(0, 600)) +
+  theme_minimal() +  # Optional: Use a minimal theme
+  theme(
+    axis.text.x = element_text(angle = 25, hjust = 1)  # Angle x-axis labels
+  ) +
+  theme(plot.title = element_text(hjust = 0.5))  # Center the title
+
+```
+
+#### Race and origin 2 (Categorical)
+```{r}
+
+# Create a summary table with counts and percentages
+summary_table <- mydata_1 %>%
+  group_by(Race.recode..White..Black..Other.) %>%
+  summarise(
+    Count = n(),  # Count of each category
+    Percentage = round((n() / nrow(mydata_1)) * 100, 1)  # Percentage of each category
+  ) %>% ungroup()
+
+# Display the summary table
+kable(summary_table, caption = "")
+
+# Calculate percentage frequencies
+mydata_1 <- mydata_1 %>%
+  group_by(Race.recode..White..Black..Other.) %>%
+  mutate(Count = n()) %>% 
+  mutate(Percentage = Count / nrow(mydata_1) * 100) %>% ungroup()
+
+# Create barplot
+ggplot(mydata_1, aes(x = Race.recode..White..Black..Other.)) +
+  geom_bar(aes(y = after_stat(count) / 1000), width = 0.5, fill = "lightblue", color = "darkblue") +
+  geom_text(aes(y = after_stat(count) / 1000, label = sprintf("%.1f%%", Percentage)), 
+            stat = "count", vjust = -0.5, color = "black") +  # Add percentages on top of bars
+  labs(title = "Race and origin", x = "", y = "Counts (*1000)") +
+  scale_y_continuous(limits = c(0, 600)) +
+  theme_minimal() +  # Optional: Use a minimal theme
+  theme(
+    axis.text.x = element_text(angle = 25, hjust = 1)  # Angle x-axis labels
+  ) +
+  theme(plot.title = element_text(hjust = 0.5))  # Center the title
+
+```
+
+### Tumor characteristics
+
+#### Histological type
+
+Categorized based on ICD code:
+Lewis DR, Check DP, Caporaso NE, Travis WD, Devesa SS. US lung cancer trends by histologic type. Cancer. 2014 Sep 15;120(18):2883-92. doi: 10.1002/cncr.28749. Epub 2014 Aug 11. PMID: 25113306; PMCID: PMC4187244.
+
+```{r}
+#Categorical variable
+mydata_1 <- mydata_1 %>%
+  mutate(histological_type = case_when(
+    Histologic.Type.ICD.O.3 %in% c(8051:8052, 8070:8076, 8078, 8083:8084, 8090, 8094, 8120, 8123) ~ "Squamous Cell Carcinoma",
+    Histologic.Type.ICD.O.3 %in% c(8002, 8041:8045) ~ "Small Cell Carcinoma",
+    Histologic.Type.ICD.O.3 %in% c(8015, 8050, 8140:8141, 8143:8145, 8147, 8190, 8201, 8211, 
+                                   8250:8255, 8260, 8290, 8310, 8320, 8323, 8333, 8401, 
+                                   8440, 8470:8471, 8480:8481, 8490, 8503, 8507, 8550, 
+                                   8570:8572, 8574, 8576) ~ "Adenocarcinoma",
+    Histologic.Type.ICD.O.3 %in% c(8012:8014, 8021, 8034, 8082) ~ "Large Cell Carcinoma",
+    Histologic.Type.ICD.O.3 %in% c(8003:8004, 8022, 8030:8035, 8200, 8240:8241, 8243:8246, 
+                                   8249, 8430, 8525, 8560, 8562, 8575) ~ "Other Specified Carcinoma",
+    Histologic.Type.ICD.O.3 %in% c(8010:8011, 8020, 8230, 8046, 8000:8001) ~ "Unspecified Malignant Neoplasms",
+    Histologic.Type.ICD.O.3 %in% c(8580:9999, 8005, 8095, 8124, 8130, 8146, 8160, 8170, 
+                                   8231, 8247, 8263, 8312, 8340:8341, 8350, 8370, 8441, 
+                                   8460, 8500, 8501, 8510, 8524, 8530, 8551) ~ "Omitted Cases (non-carcinoma or metastasis)",
+    TRUE ~ "Other"  # Default case for any unmatched codes
+  ))
+
+# Create a summary table with counts and percentages
+summary_table <- mydata_1 %>%
+  group_by(histological_type) %>%
+  summarise(
+    Count = n(),  # Count of each category
+    Percentage = round((n() / nrow(mydata_1)) * 100, 1)  # Percentage of each category
+  ) %>% ungroup()
+
+# Display the summary table
+kable(summary_table, caption = "")
+
+# Calculate percentage frequencies
+mydata_1 <- mydata_1 %>%
+  group_by(histological_type) %>%
+  mutate(Count = n()) %>% 
+  mutate(Percentage = Count / nrow(mydata_1) * 100) %>% ungroup()
+
+# Create barplot
+ggplot(mydata_1, aes(x = histological_type)) +
+  geom_bar(aes(y = after_stat(count) / 1000), width = 0.7, fill = "lightblue", color = "darkblue") +
+  geom_text(aes(y = after_stat(count) / 1000, label = sprintf("%.1f%%", Percentage)), 
+            stat = "count", vjust = -0.5, color = "black") +  # Add percentages on top of bars
+  labs(title = "Histological type", y = "Counts (*1000)", x = "") +
+  scale_y_continuous(limits = c(0, 310)) +
+  theme_minimal() +  # Optional: Use a minimal theme
+  theme(
+    axis.text.x = element_text(angle = 25, hjust = 1)  # Angle x-axis labels
+  ) +
+  theme(plot.title = element_text(hjust = 0.5))  # Center the title
+
+```
+
+#### Laterality (Categorical)
+```{r}
+
+# Create a summary table with counts and percentages
+summary_table <- mydata_1 %>%
+  group_by(Laterality) %>%
+  summarise(
+    Count = n(),  # Count of each category
+    Percentage = round((n() / nrow(mydata_1)) * 100, 1)  # Percentage of each category
+  ) %>% ungroup()
+
+# Display the summary table
+kable(summary_table, caption = "")
+
+# Calculate percentage frequencies
+mydata_1 <- mydata_1 %>%
+  group_by(Laterality) %>%
+  mutate(Count = n()) %>% 
+  mutate(Percentage = Count / nrow(mydata_1) * 100) %>% ungroup()
+
+# Create barplot
+ggplot(mydata_1, aes(x = Laterality)) +
+  geom_bar(aes(y = after_stat(count) / 1000), width = 0.5, fill = "lightblue", color = "darkblue") +
+  geom_text(aes(y = after_stat(count) / 1000, label = sprintf("%.1f%%", Percentage)), 
+            stat = "count", vjust = -0.5, color = "black") +  # Add percentages on top of bars
+  labs(title = "Laterality", x = "", y = "Counts (*1000)") +
+  scale_y_continuous(limits = c(0, 450)) +
+  theme_minimal() +  # Optional: Use a minimal theme
+  theme(
+    axis.text.x = element_text(angle = 25, hjust = 1)  # Angle x-axis labels
+  ) +
+  theme(plot.title = element_text(hjust = 0.5))  # Center the title
+
+```
+
+
+#### Clinical stage (Categorical)
+
+```{r}
+stage00_03 <- mydata_1 %>% filter(Year.of.diagnosis %in% c(2000:2003)) %>% 
+  mutate(stage = case_when(
+    SEER.modified.AJCC.stage.3rd..1988.2003. == 10 ~ "I",
+    SEER.modified.AJCC.stage.3rd..1988.2003. == 20 ~ "II",
+    SEER.modified.AJCC.stage.3rd..1988.2003. == 31 ~ "IIIA",
+    SEER.modified.AJCC.stage.3rd..1988.2003. == 32 ~ "IIIB",
+    SEER.modified.AJCC.stage.3rd..1988.2003. == 40 ~ "IV",
+    TRUE ~ "Missing"  # Default case for any unmatched codes
+  ))
+
+stage04_15 <- mydata_1 %>% filter(Year.of.diagnosis %in% c(2004:2015)) %>% 
+  mutate(stage = case_when(
+    Derived.AJCC.Stage.Group..6th.ed..2004.2015. == "IA" ~ "IA",
+    Derived.AJCC.Stage.Group..6th.ed..2004.2015. == "IB" ~ "IB",
+    Derived.AJCC.Stage.Group..6th.ed..2004.2015. == "IIA" ~ "IIA",
+    Derived.AJCC.Stage.Group..6th.ed..2004.2015. == "IIB" ~ "IIB",
+    Derived.AJCC.Stage.Group..6th.ed..2004.2015. == "IIIA" ~ "IIIA",
+    Derived.AJCC.Stage.Group..6th.ed..2004.2015. == "IIIB" ~ "IIIB",
+    Derived.AJCC.Stage.Group..6th.ed..2004.2015. == "IV" ~ "IV",
+    TRUE ~ "Missing"  # Default case for any unmatched codes
+  ))
+
+stage16_17 <- mydata_1 %>% filter(Year.of.diagnosis %in% c(2016:2017)) %>% 
+  mutate(stage = case_when(
+    Derived.SEER.Cmb.Stg.Grp..2016.2017. == "0" ~ "I",
+    Derived.SEER.Cmb.Stg.Grp..2016.2017. == "1A" ~ "IA",
+    Derived.SEER.Cmb.Stg.Grp..2016.2017. == "1B" ~ "IB",
+    Derived.SEER.Cmb.Stg.Grp..2016.2017. == "2" ~ "II",
+    Derived.SEER.Cmb.Stg.Grp..2016.2017. == "2A" ~ "IIA",
+    Derived.SEER.Cmb.Stg.Grp..2016.2017. == "2B" ~ "IIB",
+    Derived.SEER.Cmb.Stg.Grp..2016.2017. == "3" ~ "III",
+    Derived.SEER.Cmb.Stg.Grp..2016.2017. == "3A" ~ "IIIA",
+    Derived.SEER.Cmb.Stg.Grp..2016.2017. == "3B" ~ "IIIB",
+    Derived.SEER.Cmb.Stg.Grp..2016.2017. == "4" ~ "IV",
+    TRUE ~ "Missing"  # Default case for any unmatched codes
+  ))
+
+stage18_21 <- mydata_1 %>% filter(Year.of.diagnosis %in% c(2018:2021)) %>% 
+  mutate(stage = case_when(
+    Derived.EOD.2018.Stage.Group..2018.. == "0" ~ "I",
+    Derived.EOD.2018.Stage.Group..2018.. == "1A1" ~ "IA",
+    Derived.EOD.2018.Stage.Group..2018.. == "1B2" ~ "IB",
+    Derived.EOD.2018.Stage.Group..2018.. == "1A3" ~ "II",
+    Derived.EOD.2018.Stage.Group..2018.. == "1B" ~ "IIA",
+    Derived.EOD.2018.Stage.Group..2018.. == "2A" ~ "IIB",
+    Derived.EOD.2018.Stage.Group..2018.. == "2B" ~ "III",
+    Derived.EOD.2018.Stage.Group..2018.. == "3" ~ "IIIA",
+    Derived.EOD.2018.Stage.Group..2018.. == "3A" ~ "IIIB",
+    Derived.EOD.2018.Stage.Group..2018.. == "3B" ~ "IV",
+    Derived.EOD.2018.Stage.Group..2018.. == "3C" ~ "IV",
+    Derived.EOD.2018.Stage.Group..2018.. == "4" ~ "IV",
+    Derived.EOD.2018.Stage.Group..2018.. == "4A" ~ "IVA",
+    Derived.EOD.2018.Stage.Group..2018.. == "4B" ~ "IVB",
+    TRUE ~ "Missing"  # Default case for any unmatched codes
+  ))
+
+mydata_1 <- stage00_03 %>% full_join(stage04_15, by = "Patient.ID") %>% 
+  full_join(stage16_17, by = "Patient.ID") %>% 
+  full_join(stage18_21, by = "Patient.ID") %>% mutate(final_stage = case_when(
+    !is.na(stage.x) & is.na(stage.y) & is.na(stage.x.x) & is.na(stage.y.y) ~ stage.x,
+    is.na(stage.x) & !is.na(stage.y) & is.na(stage.x.x) & is.na(stage.y.y) ~ stage.y,
+    is.na(stage.x) & is.na(stage.y) & !is.na(stage.x.x) & is.na(stage.y.y) ~ stage.x.x,
+    is.na(stage.x) & is.na(stage.y) & is.na(stage.x.x) & !is.na(stage.y.y) ~ stage.y.y,
+    is.na(stage.x) & is.na(stage.y) & is.na(stage.x.x) & is.na(stage.y.y) ~ NA_character_,
+  )) %>% select(Patient.ID, final_stage) %>% full_join(mydata_1, by = "Patient.ID")
+
+# Create a summary table with counts and percentages
+summary_table <- mydata_1 %>%
+  group_by(final_stage) %>%
+  summarise(
+    Count = n(),  # Count of each category
+    Percentage = round((n() / nrow(mydata_1)) * 100, 1)  # Percentage of each category
+  ) %>% ungroup()
+
+# Display the summary table
+kable(summary_table, caption = "")
+
+# Calculate percentage frequencies
+mydata_1 <- mydata_1 %>%
+  group_by(final_stage) %>%
+  mutate(Count = n()) %>% 
+  mutate(Percentage = Count / nrow(mydata_1) * 100) %>% ungroup()
+
+# Create barplot
+ggplot(mydata_1, aes(x = final_stage)) +
+  geom_bar(aes(y = after_stat(count) / 1000), width = 0.7, fill = "lightblue", color = "darkblue") +
+  geom_text(aes(y = after_stat(count) / 1000, label = sprintf("%.1f%%", Percentage)), 
+            stat = "count", vjust = -0.5, color = "black") +  # Add percentages on top of bars
+  labs(title = "Clinical stage at diagnosis", y = "Counts (*1000)", x = "") +
+  scale_y_continuous(limits = c(0, 300)) +
+  theme_minimal() +  # Optional: Use a minimal theme
+  theme(plot.title = element_text(hjust = 0.5))  # Center the title
+
+
+```
+
+#### Clinical stage summary (Categorical)
+```{r}
+
+mydata_1 <- mydata_1 %>% 
+  mutate(combined_stage = case_when(
+    Year.of.diagnosis < 2004 ~ Summary.stage.2000..1998.2017.,  # Use stage_A if year <= 2004
+    Year.of.diagnosis >= 2004 ~ Combined.Summary.Stage..2004..    # Use stage_B if year > 2004
+  ))
+
+# Create a summary table with counts and percentages
+summary_table <- mydata_1 %>%
+  group_by(combined_stage) %>%
+  summarise(
+    Count = n(),  # Count of each category
+    Percentage = round((n() / nrow(mydata_1)) * 100, 1)  # Percentage of each category
+  ) %>% ungroup()
+
+# Display the summary table
+kable(summary_table, caption = "")
+
+# Calculate percentage frequencies
+mydata_1 <- mydata_1 %>%
+  group_by(combined_stage) %>%
+  mutate(Count = n()) %>% 
+  mutate(Percentage = Count / nrow(mydata_1) * 100) %>% ungroup()
+
+# Create barplot
+ggplot(mydata_1, aes(x = combined_stage)) +
+  geom_bar(aes(y = after_stat(count) / 1000), width = 0.7, fill = "lightblue", color = "darkblue") +
+  geom_text(aes(y = after_stat(count) / 1000, label = sprintf("%.1f%%", Percentage)), 
+            stat = "count", vjust = -0.5, color = "black") +  # Add percentages on top of bars
+  labs(title = "Clinical stage at diagnosis", y = "Counts (*1000)", x = "") +
+  scale_y_continuous(limits = c(0, 400)) +
+  theme_minimal() +  # Optional: Use a minimal theme
+  theme(plot.title = element_text(hjust = 0.5))  # Center the title
+
+```
+
+
+#### Stage I-IIIA vs. IIIB-IV and Before/After 2015
+```{r}
+
+# Stratify by stage I-IIIA vs. IIIB-IV and Before/After 2015
+mydata_1 <- mydata_1 %>% filter(final_stage != "Missing") %>% 
+  mutate(stage_binary = case_when(
+    final_stage %in% c("I", "IA", "IB", "II", "IIA", "IIB", "III", "IIIA") ~ "Early stage",
+    final_stage %in% c("IIIB", "IV", "IVA", "IVB") ~ "Late stage"
+  )) %>% 
+  mutate(year_2015 = case_when(
+    Year.of.diagnosis < 2015 ~ "Before 2015",
+    Year.of.diagnosis >= 2015 ~ "After 2015"
+  )) %>% select(Patient.ID, stage_binary, year_2015) %>% full_join(mydata_1, by = "Patient.ID")
+
+
+# Create a summary table with counts and percentages
+summary_table <- mydata_1 %>%
+  group_by(stage_binary, year_2015) %>%
+  summarise(
+    Count = n(),  # Count of each category
+    Percentage = round((n() / nrow(mydata_1)) * 100, 1)  # Percentage of each category
+  ) %>% ungroup()
+
+# Display the summary table
+kable(summary_table, caption = "")
+
+
+```
+
+
+#### Tumor sequence number
+```{r}
+
+# Create a summary table with counts and percentages
+summary_table <- mydata_1 %>%
+  group_by(Sequence.number) %>%
+  summarise(
+    Count = n(),  # Count of each category
+    Percentage = round((n() / nrow(mydata_1)) * 100, 1)  # Percentage of each category
+  ) %>% ungroup()
+
+# Display the summary table
+kable(summary_table, caption = "")
+
+# Calculate percentage frequencies
+mydata_1 <- mydata_1 %>%
+  group_by(Sequence.number) %>%
+  mutate(Count = n()) %>% 
+  mutate(Percentage = Count / nrow(mydata_1) * 100) %>% ungroup()
+
+# Create barplot
+ggplot(mydata_1, aes(x = Sequence.number)) +
+  geom_bar(aes(y = after_stat(count) / 1000), width = 0.4, fill = "lightblue", color = "darkblue") +
+  geom_text(aes(y = after_stat(count) / 1000, label = sprintf("%.1f%%", Percentage)), 
+            stat = "count", vjust = -0.5, color = "black") +  # Add percentages on top of bars
+  labs(title = "Sequence.number", y = "Counts (*1000)", x = "") +
+  scale_y_continuous(limits = c(0, 700)) +
+  theme_minimal() +  # Optional: Use a minimal theme
+  theme(plot.title = element_text(hjust = 0.5))  # Center the title
+
+```
+
+### Treatment
+
+#### Days from diagnosis to treatment
+```{r}
+
+mydata_1 <- mydata_1 %>%
+  mutate(time_from_diagnosis_to_treatment = ifelse(Time.from.diagnosis.to.treatment.in.days.recode == "731+ days", 731, Time.from.diagnosis.to.treatment.in.days.recode)) %>% 
+  mutate(time_from_diagnosis_to_treatment_1 = ifelse(time_from_diagnosis_to_treatment == "Unable to calculate", NA_character_, time_from_diagnosis_to_treatment)) %>% 
+  mutate(time_from_diagnosis_to_treatment_2 = as.numeric(time_from_diagnosis_to_treatment_1)) %>% 
+  mutate(radiation = case_when(
+    Radiation.recode %in% c("Beam radiation", "Combination of beam with implants or isotopes", "Radiation, NOS  method or source not specified", "Radioactive implants (includes brachytherapy) (1988+)", "Radioisotopes (1988+)") ~ "Yes",
+    Radiation.recode %in% c("None/Unknown", "Recommended, unknown if administered", "Refused (1988+)") ~ "None/Refused/Unknown"
+  )) %>% 
+  mutate(surgery = case_when(
+    Reason.no.cancer.directed.surgery == "Surgery performed" ~ "Yes",
+    Reason.no.cancer.directed.surgery %in% c("Not performed, patient died prior to recommended surgery", "Not recommended, contraindicated due to other cond; autopsy only (1973-2002)", "Recommended but not performed, unknown reason", "Not recommended", "Recommended but not performed, patient refused", "Recommended, unknown if performed", "Unknown; death certificate; or autopsy only (2003+)") ~ "None/Refused/Unknown"
+  ))
+
+summary(mydata_1$time_from_diagnosis_to_treatment_2)  # Gives Min, 1st Qu., Median, Mean, 3rd Qu., Max
+
+# Create a histogram of the age column
+ggplot(mydata_1, aes(x = time_from_diagnosis_to_treatment_2)) +
+  geom_histogram(binwidth = 10, fill = "lightblue", color = "black") +
+  scale_x_continuous(breaks = seq(0, 750, by = 30)) +
+  xlab("Days") +
+  ylab("Cases") +
+  ggtitle("Days from diagnosis to treatment")
+
+```
+
+
+#### Chemotherapy (Binary)
+```{r}
+
+# Create a summary table with counts and percentages
+summary_table <- mydata_1 %>%
+  group_by(Chemotherapy.recode..yes..no.unk.) %>%
+  summarise(
+    Count = n(),  # Count of each category
+    Percentage = round((n() / nrow(mydata_1)) * 100, 1)  # Percentage of each category
+  ) %>% ungroup()
+
+# Display the summary table
+kable(summary_table, caption = "")
+
+# Calculate percentage frequencies
+mydata_1 <- mydata_1 %>%
+  group_by(Chemotherapy.recode..yes..no.unk.) %>%
+  mutate(Count = n()) %>% 
+  mutate(Percentage = Count / nrow(mydata_1) * 100) %>% ungroup()
+
+# Create barplot
+ggplot(mydata_1, aes(x = Chemotherapy.recode..yes..no.unk.)) +
+  geom_bar(aes(y = after_stat(count) / 1000), width = 0.3, fill = "lightblue", color = "darkblue") +
+  geom_text(aes(y = after_stat(count) / 1000, label = sprintf("%.1f%%", Percentage)), 
+            stat = "count", vjust = -0.5, color = "black") +  # Add percentages on top of bars
+  labs(title = "Chemotherapy", y = "Counts (*1000)", x = "") +
+  scale_y_continuous(limits = c(0, 400)) +
+  theme_minimal() +  # Optional: Use a minimal theme
+  theme(plot.title = element_text(hjust = 0.5))  # Center the title
+
+```
+
+
+#### Radiation (Binary)
+```{r}
+
+# Create a summary table with counts and percentages
+summary_table <- mydata_1 %>%
+  group_by(radiation) %>%
+  summarise(
+    Count = n(),  # Count of each category
+    Percentage = round((n() / nrow(mydata_1)) * 100, 1)  # Percentage of each category
+  ) %>% ungroup()
+
+# Display the summary table
+kable(summary_table, caption = "")
+
+# Calculate percentage frequencies
+mydata_1 <- mydata_1 %>%
+  group_by(radiation) %>%
+  mutate(Count = n()) %>% 
+  mutate(Percentage = Count / nrow(mydata_1) * 100) %>% ungroup()
+
+# Create barplot
+ggplot(mydata_1, aes(x = radiation)) +
+  geom_bar(aes(y = after_stat(count) / 1000), width = 0.3, fill = "lightblue", color = "darkblue") +
+  geom_text(aes(y = after_stat(count) / 1000, label = sprintf("%.1f%%", Percentage)), 
+            stat = "count", vjust = -0.5, color = "black") +  # Add percentages on top of bars
+  labs(title = "Radiation", y = "Counts (*1000)", x = "") +
+  scale_y_continuous(limits = c(0, 450)) +
+  theme_minimal() +  # Optional: Use a minimal theme
+  theme(plot.title = element_text(hjust = 0.5))  # Center the title
+
+```
+
+
+#### Surgery (Binary)
+```{r}
+
+# Create a summary table with counts and percentages
+summary_table <- mydata_1 %>%
+  group_by(surgery) %>%
+  summarise(
+    Count = n(),  # Count of each category
+    Percentage = round((n() / nrow(mydata_1)) * 100, 1)  # Percentage of each category
+  ) %>% ungroup()
+
+# Display the summary table
+kable(summary_table, caption = "")
+
+# Calculate percentage frequencies
+mydata_1 <- mydata_1 %>%
+  group_by(surgery) %>%
+  mutate(Count = n()) %>% 
+  mutate(Percentage = Count / nrow(mydata_1) * 100) %>% ungroup()
+
+# Create barplot
+ggplot(mydata_1, aes(x = surgery)) +
+  geom_bar(aes(y = after_stat(count) / 1000), width = 0.3, fill = "lightblue", color = "darkblue") +
+  geom_text(aes(y = after_stat(count) / 1000, label = sprintf("%.1f%%", Percentage)), 
+            stat = "count", vjust = -0.5, color = "black") +  # Add percentages on top of bars
+  labs(title = "Surgery", y = "Counts (*1000)", x = "") +
+  scale_y_continuous(limits = c(0, 600)) +
+  theme_minimal() +  # Optional: Use a minimal theme
+  theme(plot.title = element_text(hjust = 0.5))  # Center the title
+
+```
+
+
+### Vital status (Binary)
+```{r}
+
+# Create a summary table with counts and percentages
+summary_table <- mydata_1 %>%
+  group_by(Vital.status.recode..study.cutoff.used.) %>%
+  summarise(
+    Count = n(),  # Count of each category
+    Percentage = round((n() / nrow(mydata_1)) * 100, 1)  # Percentage of each category
+  ) %>% ungroup()
+
+# Display the summary table
+kable(summary_table, caption = "")
+
+```
+
+### Cause of death
+
+#### Cause of death 1
+```{r}
+
+# Create a summary table with counts and percentages
+summary_table <- mydata_1 %>%
+  group_by(SEER.other.cause.of.death.classification) %>%
+  summarise(
+    Count = n(),  # Count of each category
+    Percentage = round((n() / nrow(mydata_1)) * 100, 1)  # Percentage of each category
+  ) %>% ungroup()
+
+# Display the summary table
+kable(summary_table, caption = "")
+
+```
+
+#### Cause of death 2
+```{r}
+
+# Create a summary table with counts and percentages
+summary_table <- mydata_1 %>%
+  group_by(SEER.cause.specific.death.classification) %>%
+  summarise(
+    Count = n(),  # Count of each category
+    Percentage = round((n() / nrow(mydata_1)) * 100, 1)  # Percentage of each category
+  ) %>% ungroup()
+
+# Display the summary table
+kable(summary_table, caption = "")
+
+```
+
+
+#### Cause of death 3
+```{r}
+
+# Create a summary table with counts and percentages
+summary_table <- mydata_1 %>%
+  group_by(COD.to.site.recode.ICD.O.3.2023.Revision.Expanded..1999..) %>%
+  summarise(
+    Count = n(),  # Count of each category
+    Percentage = round((n() / nrow(mydata_1)) * 100, 1)  # Percentage of each category
+  ) %>% ungroup() %>% arrange(desc(Count))
+
+# Display the summary table
+kable(summary_table, caption = "")
+
+```
+
+### County
+```{r}
+
+# Create a summary table with counts and percentages
+summary_table <- mydata_1 %>%
+  group_by(State.county) %>%
+  summarise(
+    Count = n(),  # Count of each category
+    Percentage = round((n() / nrow(mydata_1)) * 100, 1)  # Percentage of each category
+  ) %>% ungroup() %>% arrange(desc(Count))
+
+# Display the summary table
+kable(summary_table, caption = "")
+
+```
+
+### States
+```{r}
+
+mydata_1 <- mydata_1 %>% mutate(state = substr(State.county, 1, 2))
+
+# Create a summary table with counts and percentages
+summary_table <- mydata_1 %>%
+  group_by(state) %>%
+  summarise(
+    Count = n(),  # Count of each category
+    Percentage = round((n() / nrow(mydata_1)) * 100, 1)  # Percentage of each category
+  ) %>% ungroup() %>% arrange(desc(Count))
+
+# Display the summary table
+kable(summary_table, caption = "")
+
+```
+
+
+#### States grouping based on Temp
+
+* High Temp States: HI, LA, GA
+* Medium Temp States: CA, NM
+* Low Temp States: KY, NJ, CT, IA, UT
+
+```{r}
+
+mydata_1 <- mydata_1 %>%
+  mutate(state_T = case_when(
+    state %in% c("HI", "LA", "GA") ~ "High Temp",
+    state %in% c("CA", "NM") ~ "Medium Temp",
+    state %in% c("KY", "NJ", "CT", "IA", "UT") ~ "Low Temp",
+  ))
+
+# Create a summary table with counts and percentages
+summary_table <- mydata_1 %>%
+  group_by(state_T) %>%
+  summarise(
+    Count = n(),  # Count of each category
+    Percentage = round((n() / nrow(mydata_1)) * 100, 1)  # Percentage of each category
+  ) %>% ungroup() %>% arrange(desc(Count))
+
+# Display the summary table
+kable(summary_table, caption = "")
+
+```
+
+
+### Survival curves
+
+#### Overall
+```{r}
+
+summary(mydata_1$Survival.months)  # Gives Min, 1st Qu., Median, Mean, 3rd Qu., Max
+sd(mydata_1$Survival.months)       # Standard Deviation
+
+# Create a censoring variable: 1 if death occurred, 0 if censored (last follow-up)
+mydata_1 <- mydata_1 %>%
+  mutate(status = ifelse(Vital.status.recode..study.cutoff.used. == "Dead", 1, 0))  # 1 = death, 0 = censored
+
+# Fit Kaplan-Meier survival model
+km_fit <- survfit(Surv(Survival.months, status) ~ 1, data = mydata_1)
+
+# Plot Kaplan-Meier survival curve overall
+ggsurvplot(km_fit,
+           data = mydata_1,
+           legend.title = "",
+           xlab = "Overall survival (months)",
+           ylab = "Overall survival (%)",
+           title = "Overall Survival Among Patients With Lung Cancer",
+           risk.table = TRUE,
+           conf.int = FALSE,
+           palette = c("red", "blue"),
+           ggtheme = theme_minimal())
+```
+
+
+#### by Sex
+```{r}
+
+# Set the levels of Sex in the desired order
+mydata_1$Sex <- factor(mydata_1$Sex, levels = c("Male", "Female"))
+
+# Fit Kaplan-Meier survival model, stratified by sex
+km_fit_sex <- survfit(Surv(Survival.months, status) ~ Sex, data = mydata_1)
+
+# Plot Kaplan-Meier survival curve by sex
+ggsurvplot(km_fit_sex,
+           data = mydata_1,
+           legend.title = "",   # Legend title for groups
+           legend.labs = c("Male", "Female"),  # Customize legend labels
+           xlab = "Overall survival (months)",   # X-axis label
+           ylab = "Overall survival (%)",  # Y-axis label
+           title = "Overall Survival Among Patients With Lung Cancer by Sex",  # Title
+           risk.table = TRUE,  # Show the risk table below the plot
+           risk.table.title = "",
+           conf.int = FALSE,
+           palette = c("red", "blue"),  # Set colors for male and female
+           ggtheme = theme_minimal())  # Set a minimal theme
+
+```
+
+
+#### by Stage ("Distant", "Localized", "Regional")
+```{r}
+# Subset the data to include only the desired stages
+mydata_1_filtered <- mydata_1[mydata_1$combined_stage %in% c("Distant", "Localized", "Regional"), ]
+
+# Set the levels of combined_stage in the desired order
+mydata_1_filtered$combined_stage <- factor(mydata_1_filtered$combined_stage,
+                                          levels = c("Localized", "Regional", "Distant"))
+
+# Fit Kaplan-Meier survival model, stratified by combined stage
+km_fit_stage <- survfit(Surv(Survival.months, status) ~ combined_stage, data = mydata_1_filtered)
+
+# Plot Kaplan-Meier survival curve by stage
+ggsurvplot(km_fit_stage,
+           data = mydata_1_filtered,
+           legend.title = "",
+           legend.labs = c("Localized", "Regional", "Distant"),  # Legend labels in the desired order
+           xlab = "Overall survival (months)",
+           ylab = "Overall survival (%)",
+           title = "Overall Survival Among Patients With Lung Cancer by Stage at Diagnosis",  # Adjust title
+           risk.table = TRUE,
+           risk.table.title = "",
+           conf.int = FALSE,
+           palette = "Dark2",
+           ggtheme = theme_minimal(),
+           risk.table.fontsize = 2.5,
+           risk.table.height = 0.25)
+
+```
+
+
+
+#### by Stage ("Early stage (I-IIIA)", "Late stage (IIIB-IV)")
+```{r}
+# Subset the data to include only the desired stages
+mydata_1_filtered <- mydata_1[mydata_1$stage_binary %in% c("Early stage", "Late stage"), ]
+
+# Set the levels of combined_stage in the desired order
+mydata_1_filtered$stage_binary <- factor(mydata_1_filtered$stage_binary,
+                                          levels = c("Early stage", "Late stage"))
+
+# Fit Kaplan-Meier survival model, stratified by combined stage
+km_fit_stage <- survfit(Surv(Survival.months, status) ~ stage_binary, data = mydata_1_filtered)
+
+# Plot Kaplan-Meier survival curve by stage
+ggsurvplot(km_fit_stage,
+           data = mydata_1_filtered,
+           legend.title = "",
+           legend.labs = c("Early stage (I-IIIA)", "Late stage (IIIB-IV)"),  # Legend labels in the desired order
+           xlab = "Overall survival (months)",
+           ylab = "Overall survival (%)",
+           title = "Overall Survival Among Patients With Lung Cancer by Stage at Diagnosis",  # Adjust title
+           risk.table = TRUE,
+           risk.table.title = "",
+           conf.int = FALSE,
+           palette = "Dark2",
+           ggtheme = theme_minimal(),
+           risk.table.fontsize = 2.5,
+           risk.table.height = 0.25)
+
+```
+
+
+
+
+#### by Race/Origin
+```{r}
+# Subset the data to include only the desired race/origin
+mydata_1_filtered <- mydata_1[mydata_1$Race.recode..White..Black..Other. %in% c("White", "Black", "Other (American Indian/AK Native, Asian/Pacific Islander)"), ]
+
+# Set the levels of Race.recode..White..Black..Other. in the desired order
+mydata_1_filtered$Race.recode..White..Black..Other. <- factor(mydata_1_filtered$Race.recode..White..Black..Other.,
+                                          levels = c("White", "Black", "Other (American Indian/AK Native, Asian/Pacific Islander)"))
+
+# Fit Kaplan-Meier survival model, stratified by race/origin
+km_fit_race <- survfit(Surv(Survival.months, status) ~ Race.recode..White..Black..Other., data = mydata_1_filtered)
+
+# Plot Kaplan-Meier survival curve by race/origin
+ggsurvplot(km_fit_race,
+           data = mydata_1_filtered,
+           legend.title = "Race/origin",
+           legend.labs = c("White", "Black", "Other"),  # Legend labels in the desired order
+           xlab = "Overall survival (months)",
+           ylab = "Overall survival (%)",
+           title = "Overall Survival Among Patients With Lung Cancer by race/origin at Diagnosis",  # Adjust title
+           risk.table = TRUE,
+           risk.table.title = "",
+           conf.int = FALSE,
+           palette = "Dark2",
+           ggtheme = theme_minimal(),
+           risk.table.fontsize = 2.5,
+           risk.table.height = 0.25)
+
+```
+
+
+
+#### by Histological Type
+```{r}
+# Subset the data to include only the desired histological type
+mydata_1_filtered <- mydata_1[mydata_1$histological_type %in% c("Adenocarcinoma", "Squamous Cell Carcinoma", "Large Cell Carcinoma", "Small Cell Carcinoma"), ]
+
+# Set the levels of histological_type in the desired order
+mydata_1_filtered$histological_type <- factor(mydata_1_filtered$histological_type,
+                                          levels = c("Adenocarcinoma", "Squamous Cell Carcinoma", "Large Cell Carcinoma", "Small Cell Carcinoma"))
+
+# Fit Kaplan-Meier survival model, stratified by histological_type
+km_fit_hs <- survfit(Surv(Survival.months, status) ~ histological_type, data = mydata_1_filtered)
+
+# Plot Kaplan-Meier survival curve by histological_type
+ggsurvplot(km_fit_hs,
+           data = mydata_1_filtered,
+           legend.title = "",
+           legend.labs = c("Adenocarcinoma", "Squamous Cell Carcinoma", "Large Cell Carcinoma", "Small Cell Carcinoma"),  # Legend labels in the desired order
+           xlab = "Overall survival (months)",
+           ylab = "Overall survival (%)",
+           title = "Overall Survival Among Patients With Lung Cancer by histological type",  # Adjust title
+           risk.table = TRUE,
+           risk.table.title = "",
+           conf.int = FALSE,
+           palette = "Dark2",
+           ggtheme = theme_minimal(),
+           risk.table.fontsize = 2.5,
+           risk.table.height = 0.27)
+
+```
+
+
+#### by Stage and Year (Early/Late stage and Before 2015/After 2015)
+```{r}
+# Fit Kaplan-Meier survival model, stratified by Stage and Year
+km_fit_stage_year <- survfit(Surv(Survival.months, status) ~ stage_binary + year_2015, data = mydata_1)
+
+# Plot Kaplan-Meier survival curve by Stage and Year
+ggsurvplot(km_fit_stage_year,
+           data = mydata_1,
+           legend.title = "",
+           legend.labs = c("Early Stage - After 2015", "Early Stage - Before 2015", "Late Stage - After 2015", "Late Stage - Before 2015"),  # Legend labels in the desired order
+           xlab = "Overall survival (months)",
+           ylab = "Overall survival (%)",
+           title = "Overall Survival Among Patients With Lung Cancer by Stage and Year",  # Adjust title
+           risk.table = TRUE,
+           risk.table.title = "",
+           conf.int = FALSE,
+           palette = "Dark2",
+           ggtheme = theme_minimal(),
+           risk.table.fontsize = 2.5,
+           risk.table.height = 0.28)
+
+```
+
+
+#### by States (High/Medium/Low Temp)
+```{r}
+
+# Subset the data to include only the desired histological type
+mydata_1_filtered <- mydata_1[mydata_1$state_T %in% c("High Temp", "Medium Temp", "Low Temp"), ]
+
+# Set the levels of Temp in the desired order
+mydata_1_filtered$state_T <- factor(mydata_1_filtered$state_T,
+                                          levels = c("High Temp", "Medium Temp", "Low Temp"))
+
+# Fit Kaplan-Meier survival model, stratified by Temp
+km_fit_temp <- survfit(Surv(Survival.months, status) ~ state_T, data = mydata_1_filtered)
+
+# Plot Kaplan-Meier survival curve by Temp
+ggsurvplot(km_fit_temp,
+           data = mydata_1_filtered,
+           legend.title = "",
+           legend.labs = c("High Temp States", "Medium Temp States", "Low Temp States"),  # Legend labels in the desired order
+           xlab = "Overall survival (months)",
+           ylab = "Overall survival (%)",
+           title = "Overall Survival Among Patients With Lung Cancer by Temp States",  # Adjust title
+           risk.table = TRUE,
+           risk.table.title = "",
+           conf.int = FALSE,
+           palette = "Dark2",
+           ggtheme = theme_minimal(),
+           risk.table.fontsize = 2.5,
+           risk.table.height = 0.27)
+
+```
+
+#### by Smoking Prevalence in county level
+```{r}
+
+mydata_1 <- mydata_1 %>% 
+  mutate(smoking_prevalence = case_when(
+    Year.of.diagnosis %in% c(2000:2003) ~ as.numeric(X..Current.Smoker..age.18....sae.2000.2003.) / 10000,
+    Year.of.diagnosis %in% c(2004:2007) ~ as.numeric(X..Current.Smoker..age.18....sae.2004.2007.) / 10000,
+    Year.of.diagnosis %in% c(2008:2010) ~ as.numeric(X..Current.Smoker..age.18....sae.2008.2010.) / 10000,
+    Year.of.diagnosis %in% c(2011:2013) ~ as.numeric(X..Current.Smoker..age.18....sae.2011.2013.) / 10000,
+    Year.of.diagnosis %in% c(2014:2016) ~ as.numeric(X..Current.Smoker..age.18....sae.2014.2016.) / 10000,
+  )) %>% mutate(smoking_quintile = ntile(smoking_prevalence, 5))
+
+# Fit Kaplan-Meier survival model, stratified by Temp
+km_fit_smoking <- survfit(Surv(Survival.months, status) ~ smoking_quintile, data = mydata_1)
+
+# Customize the plot with highlighted quintiles 1 and 5, and dashed or grey for quintiles 2, 3, 4
+ggsurvplot(km_fit_smoking,
+           data = mydata_1,
+           legend.title = "",
+           legend.labs = c("Quintile 1 (Low Smoking)", "Quintile 2", "Quintile 3", "Quintile 4", "Quintile 5 (High Smoking)"),  # Legend labels
+           xlab = "Overall survival (months)",
+           ylab = "Overall survival (%)",
+           title = "Overall Survival Among Patients With Lung Cancer by Smoking Quintiles",
+           risk.table = TRUE,
+           risk.table.title = "",
+           conf.int = FALSE,
+           ggtheme = theme_minimal(),
+           risk.table.fontsize = 2.5,
+           risk.table.height = 0.27)
+
+```
+
+#### by Yost Index (socioeconomic status (SES) index) in county level
+```{r}
+
+mydata_1 <- merge(mydata_1, mydata_Yost, by = c("State.county", "Year.of.diagnosis"), all.x = TRUE)
+
+mydata_1 <- mydata_1 %>% mutate(Yost_index = as.numeric(Yost.Index)) %>% mutate(Yost_index_quintile = ntile(Yost_index, 5)) %>% select(Patient.ID, Yost_index, Yost_index_quintile) %>% full_join(mydata_1, by = "Patient.ID")
+
+# Fit Kaplan-Meier survival model, stratified by Temp
+km_fit_yost <- survfit(Surv(Survival.months, status) ~ Yost_index_quintile, data = mydata_1)
+
+# Customize the plot with highlighted quintiles 1 and 5, and dashed or grey for quintiles 2, 3, 4
+ggsurvplot(km_fit_yost,
+           data = mydata_1,
+           legend.title = "",
+           legend.labs = c("Quintile 1 (Low Yost Index)", "Quintile 2", "Quintile 3", "Quintile 4", "Quintile 5 (High Yost Index)"),  # Legend labels
+           xlab = "Overall survival (months)",
+           ylab = "Overall survival (%)",
+           title = "Overall Survival Among Patients With Lung Cancer by Yost Index",
+           risk.table = TRUE,
+           risk.table.title = "",
+           conf.int = FALSE,
+           ggtheme = theme_minimal(),
+           risk.table.fontsize = 2.5,
+           risk.table.height = 0.3)
+
+```
